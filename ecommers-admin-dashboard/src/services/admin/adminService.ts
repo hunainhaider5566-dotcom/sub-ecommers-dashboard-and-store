@@ -326,3 +326,13 @@ export async function deleteAdminPromotion(id: string) {
   const { error } = await getSupabase().from('promotions').delete().eq('id', id)
   assertError(error)
 }
+
+export async function uploadPublicMedia(file: File, folder = "categories"): Promise<string> {
+  const client = getSupabase()
+  const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "")
+  const path = `${folder}/${crypto.randomUUID()}.${ext}`
+  const upload = await client.storage.from("public-media").upload(path, file, { upsert: true, contentType: file.type || undefined })
+  assertError(upload.error)
+  const { data } = client.storage.from("public-media").getPublicUrl(path)
+  return data.publicUrl
+}
