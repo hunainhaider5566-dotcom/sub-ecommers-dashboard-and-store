@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Archive, ArrowLeft, BarChart3, Boxes, Check, ChevronRight, CircleAlert, ClipboardList, Edit2, Eye, EyeOff, FolderTree, Image as ImageIcon, LayoutDashboard, LogOut, Menu, MessageSquare, Package, Plus, RefreshCw, Search, Settings, ShieldAlert, Store, Tag, Users, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { addOrderNote, adjustInventory, decideMarketplaceCase, deleteAdminHero, deleteAdminPromotion, deleteProductVariant, getAdminOrderDetail, getAdminProductEditor, getAdminStoreSettings, getAdminSummary, getVendorDocumentSignedUrl, listAdminCategories, listAdminCustomers, listAdminHeroes, listAdminInventory, listAdminOrders, listAdminProducts, listAdminPromotions, listAuditLogs, listMarketplaceCases, listSellerApplications, moderateProduct, reviewSellerApplication, saveAdminHero, saveAdminPromotion, saveCategory, saveProduct, saveProductVariant, updateAdminStoreSettings, updateOrder, updateProductStatus, uploadProductImage, type AdminCase, type AdminCategory, type AdminCustomer, type AdminHero, type AdminInventory, type AdminOrder, type AdminProduct, type AdminPromotion, type AdminSeller, type AdminStoreSettings, type AdminSummary, type AdminVariant } from '../services/admin/adminService'
+import { addOrderNote, adjustInventory, decideMarketplaceCase, deleteAdminHero, deleteAdminPromotion, deleteProductVariant, getAdminOrderDetail, getAdminProductEditor, getAdminStoreSettings, getAdminSummary, getVendorDocumentSignedUrl, listAdminCategories, listAdminCustomers, listAdminHeroes, listAdminInventory, listAdminOrders, listAdminProducts, listAdminPromotions, listAuditLogs, listMarketplaceCases, listSellerApplications, moderateProduct, reviewSellerApplication, saveAdminHero, saveAdminPromotion, saveCategory, saveProduct, saveProductVariant, updateAdminStoreSettings, updateOrder, updateProductStatus, uploadProductImage, uploadPublicMedia, type AdminCase, type AdminCategory, type AdminCustomer, type AdminHero, type AdminInventory, type AdminOrder, type AdminProduct, type AdminPromotion, type AdminSeller, type AdminStoreSettings, type AdminSummary, type AdminVariant } from '../services/admin/adminService'
 import type { Database } from '../types/database'
 import '../admin.css'
 
@@ -563,6 +563,8 @@ function Heroes() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingHero, setEditingHero] = useState<AdminHero | null>(null)
+  const [heroFile, setHeroFile] = useState<File | null>(null)
+  const [savingHero, setSavingHero] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -578,25 +580,36 @@ function Heroes() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
+    setSavingHero(true)
     try {
+      let imageUrl = editingHero?.image_url ?? ""
+      if (heroFile) {
+        imageUrl = await uploadPublicMedia(heroFile, "heroes")
+      } else if (String(data.get("image_url") ?? "").trim()) {
+        imageUrl = String(data.get("image_url") ?? "").trim()
+      }
+
       await saveAdminHero(
         {
-          title: String(data.get('title') ?? '').trim(),
-          subtitle: String(data.get('subtitle') ?? '').trim() || null,
-          cta_text: String(data.get('cta_text') ?? '').trim() || null,
-          cta_destination: String(data.get('cta_destination') ?? '').trim() || null,
-          image_url: String(data.get('image_url') ?? '').trim(),
-          display_order: Number(data.get('display_order') ?? 0),
-          status: String(data.get('status') ?? 'published') as AdminHero['status'],
+          title: String(data.get("title") ?? "").trim(),
+          subtitle: String(data.get("subtitle") ?? "").trim() || null,
+          cta_text: String(data.get("cta_text") ?? "").trim() || null,
+          cta_destination: String(data.get("cta_destination") ?? "").trim() || null,
+          image_url: imageUrl,
+          display_order: Number(data.get("display_order") ?? 0),
+          status: String(data.get("status") ?? "published") as AdminHero["status"],
         },
         editingHero?.id
       )
-      push('Hero slide saved.')
+      push("Hero slide saved.")
       setShowForm(false)
       setEditingHero(null)
+      setHeroFile(null)
       load()
     } catch (cause) {
-      push(cause instanceof Error ? cause.message : 'Hero slide could not be saved.', 'error')
+      push(cause instanceof Error ? cause.message : "Hero slide could not be saved.", "error")
+    } finally {
+      setSavingHero(false)
     }
   }
 
@@ -684,7 +697,7 @@ function Heroes() {
             >
               Cancel
             </button>
-            <button className="admin-button">Save hero slide</button>
+            <button className="admin-button" disabled={savingHero}>{savingHero ? "Saving…" : "Save hero slide"}</button>
           </div>
         </form>
       )}
