@@ -1,0 +1,7 @@
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { CheckCircle2, CircleAlert, Info, X } from 'lucide-react'
+type Tone = 'success' | 'error' | 'info'
+type Toast = { id: number; message: string; tone: Tone }
+const Context = createContext<{ push: (message: string, tone?: Tone) => void } | null>(null)
+export function ToastProvider({ children }: { children: ReactNode }) { const [items, setItems] = useState<Toast[]>([]); const push = (message: string, tone: Tone = 'success') => { const id = Date.now() + Math.random(); setItems((current) => [...current.slice(-2), { id, message, tone }]); window.setTimeout(() => setItems((current) => current.filter((item) => item.id !== id)), 3600) }; const value = useMemo(() => ({ push }), []); return <Context.Provider value={value}>{children}<div className="toast-viewport" aria-live="polite">{items.map((item) => <div className={`toast toast--${item.tone}`} role={item.tone === 'error' ? 'alert' : 'status'} key={item.id}>{item.tone === 'success' ? <CheckCircle2 size={18} /> : item.tone === 'error' ? <CircleAlert size={18} /> : <Info size={18} />}<span>{item.message}</span><button onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))} aria-label="Dismiss notification"><X size={16} /></button></div>)}</div></Context.Provider> }
+export function useToast() { const value = useContext(Context); if (!value) throw new Error('useToast must be used inside ToastProvider'); return value }
