@@ -1,48 +1,57 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getCatalogMode, type CatalogMode } from '../config/backend'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { isSupabaseConfigured } from '../lib/supabase'
 import { catalogService } from '../services/products/productService'
 import type { Category } from '../types/category'
 import type { Product } from '../types/product'
+import type { PublicShop } from '../types/shop'
 
 type CatalogStatus = 'loading' | 'ready' | 'error' | 'unconfigured'
 
 interface CatalogValue {
   products: Product[]
   categories: Category[]
+  shops: PublicShop[]
   status: CatalogStatus
-  mode: CatalogMode
   error: string | null
+  refresh: () => void
   findProductById: (id: string) => Product | undefined
   findProductBySlug: (slug: string) => Product | undefined
   findCategoryBySlug: (slug: string) => Category | undefined
+  findShopBySlug: (slug: string) => PublicShop | undefined
+  productsBySeller: (sellerId: string) => Product[]
 }
 
 const CatalogContext = createContext<CatalogValue | null>(null)
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  const mode = getCatalogMode()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [status, setStatus] = useState<CatalogStatus>(mode === 'unconfigured' ? 'unconfigured' : 'loading')
+  const [shops, setShops] = useState<PublicShop[]>([])
+  const [status, setStatus] = useState<CatalogStatus>(isSupabaseConfigured ? 'loading' : 'unconfigured')
   const [error, setError] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState(0)
+
+  const refresh = useCallback(() => setRefreshToken((current) => current + 1), [])
 
   useEffect(() => {
     let cancelled = false
-    setProducts([])
-    setCategories([])
     setError(null)
 
-    if (mode === 'unconfigured') {
+    if (!isSupabaseConfigured) {
+      setProducts([])
+      setCategories([])
+      setShops([])
       setStatus('unconfigured')
       return () => { cancelled = true }
     }
 
     setStatus('loading')
-    catalogService.loadCatalog(mode)
+    catalogService.loadCatalog()
       .then((catalog) => {
         if (cancelled) return
         setProducts(catalog.products)
         setCategories(catalog.categories)
+        setShops(catalog.shops)
         setStatus('ready')
       })
       .catch((cause: unknown) => {
@@ -52,18 +61,21 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       })
 
     return () => { cancelled = true }
-  }, [mode])
+  }, [refreshToken])
 
   const value = useMemo<CatalogValue>(() => ({
     products,
     categories,
+    shops,
     status,
-    mode,
     error,
+    refresh,
     findProductById: (id) => products.find((product) => product.id === id && product.isPublished),
     findProductBySlug: (slug) => products.find((product) => product.slug === slug && product.isPublished),
     findCategoryBySlug: (slug) => categories.find((category) => category.slug === slug && category.isActive !== false),
-  }), [products, categories, status, mode, error])
+    findShopBySlug: (slug) => shops.find((shop) => shop.slug === slug),
+    productsBySeller: (sellerId) => products.filter((product) => product.sellerId === sellerId),
+  }), [products, categories, shops, status, error, refresh])
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>
 }

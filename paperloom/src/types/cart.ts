@@ -12,6 +12,6 @@ export interface EnrichedCartLine extends CartLine {
   unitPrice: number
   currency: 'PKR'
   isPublished: boolean
-  availabilityStatus: 'demo' | 'unavailable' | 'out-of-stock'
+  availabilityStatus: 'unavailable' | 'out-of-stock'
   lineTotal: number
 }

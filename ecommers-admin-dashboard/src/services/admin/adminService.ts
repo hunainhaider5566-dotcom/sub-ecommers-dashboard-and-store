@@ -7,10 +7,11 @@ export type AdminCategory = Database['public']['Tables']['categories']['Row']
 export type AdminOrder = Database['public']['Tables']['orders']['Row']
 export type AdminOrderItem = Database['public']['Tables']['order_items']['Row']
 export type AdminInventory = Database['public']['Tables']['product_inventory']['Row'] & { product_name: string; variant_name: string | null }
-export type AdminCustomer = Database['public']['Tables']['profiles']['Row'] & { email: string | null; order_count: number | null }
+export type AdminCustomer = Database['public']['Functions']['admin_customer_summary']['Returns'][number]
 export type AdminVariant = Database['public']['Tables']['product_variants']['Row']
 export type AdminSeller = Database['public']['Tables']['seller_profiles']['Row']
 export type AdminCase = Database['public']['Tables']['marketplace_cases']['Row']
+export type AdminStoreSettings = Database['public']['Tables']['store_settings']['Row']
 
 export interface AdminHero {
   id: string
@@ -58,18 +59,44 @@ export async function getAdminSummary() {
   return data?.[0] ?? null
 }
 
+const PRODUCT_SAFE_COLUMNS = 'id, category_id, seller_id, name, slug, sku, short_description, description, price, currency, specifications, publication_status, moderation_status, moderated_by, moderated_at, moderation_reason, stock_verification_status, is_featured, track_inventory, weight_grams, dimensions, seo_title, seo_description, created_at, updated_at'
+
 export async function listAdminProducts(search = ''): Promise<AdminProduct[]> {
   const client = getSupabase()
-  let query = client.from('products').select('id, category_id, seller_id, name, slug, sku, short_description, description, price, currency, specifications, publication_status, moderation_status, moderated_by, moderated_at, moderation_reason, supplier_cost, fulfillment_expense, minimum_profit, cost_updated_at, stock_verification_status, is_featured, track_inventory, weight_grams, dimensions, seo_title, seo_description, created_at, updated_at, categories(name), product_inventory(quantity), product_images(image_url, storage_path, is_primary, sort_order)').order('created_at', { ascending: false }).limit(200)
-  if (search.trim()) query = query.or(`name.ilike.%${search.trim()}%,sku.ilike.%${search.trim()}%,slug.ilike.%${search.trim()}%`)
-  const { data, error } = await query
+  const { data, error } = await client.rpc('admin_list_products', { p_search: search.trim() })
   assertError(error)
-  return (data ?? []).map((row) => {
-    const category = Array.isArray(row.categories) ? row.categories[0] ?? null : row.categories
-    const inventory = Array.isArray(row.product_inventory) ? row.product_inventory.reduce((sum, item) => sum + (item.quantity ?? 0), 0) : 0
-    const images = Array.isArray(row.product_images) ? row.product_images.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) : []
-    const image = images[0]
-    return { ...row, category, inventory, image_url: image?.image_url ?? null } as unknown as AdminProduct
+  const rows = (data ?? []) as Database['public']['Tables']['products']['Row'][]
+  if (rows.length === 0) return []
+
+  const productIds = rows.map((row) => row.id)
+  const [categoriesResult, inventoryResult, imagesResult] = await Promise.all([
+    client.from('categories').select('id, name').limit(500),
+    client.from('product_inventory').select('product_id, quantity').in('product_id', productIds).limit(1000),
+    client.from('product_images').select('product_id, image_url, storage_path, is_primary, sort_order').in('product_id', productIds).order('sort_order').limit(1000),
+  ])
+  assertError(categoriesResult.error); assertError(inventoryResult.error); assertError(imagesResult.error)
+
+  const categoryNames = new Map((categoriesResult.data ?? []).map((category) => [category.id, category.name]))
+  const inventoryTotals = new Map<string, number>()
+  for (const row of inventoryResult.data ?? []) {
+    inventoryTotals.set(row.product_id, (inventoryTotals.get(row.product_id) ?? 0) + (row.quantity ?? 0))
+  }
+  const imagesByProduct = new Map<string, { image_url: string | null; is_primary: boolean | null }[]>()
+  for (const image of imagesResult.data ?? []) {
+    const list = imagesByProduct.get(image.product_id) ?? []
+    list.push(image)
+    imagesByProduct.set(image.product_id, list)
+  }
+
+  return rows.map((row) => {
+    const images = imagesByProduct.get(row.id) ?? []
+    const primary = images.find((image) => image.is_primary) ?? images[0]
+    return {
+      ...row,
+      category: row.category_id ? { name: categoryNames.get(row.category_id) ?? 'Unassigned' } : null,
+      inventory: inventoryTotals.get(row.id) ?? 0,
+      image_url: primary?.image_url ?? null,
+    }
   })
 }
 
@@ -88,7 +115,9 @@ export async function saveCategory(input: Database['public']['Tables']['categori
 
 export async function saveProduct(input: Database['public']['Tables']['products']['Insert'], id?: string) {
   const client = getSupabase()
-  const result = id ? await client.from('products').update(input).eq('id', id).select().single() : await client.from('products').insert(input).select().single()
+  const result = id
+    ? await client.from('products').update(input).eq('id', id).select(PRODUCT_SAFE_COLUMNS).single()
+    : await client.from('products').insert(input).select(PRODUCT_SAFE_COLUMNS).single()
   assertError(result.error)
   return result.data
 }
@@ -151,7 +180,7 @@ export async function getAdminOrderDetail(id: string) {
   const client = getSupabase()
   const [order, items, notes] = await Promise.all([
     client.from('orders').select('id, order_number, customer_id, customer_name, customer_phone, customer_email, shipping_address_snapshot, customer_note, currency, subtotal, delivery_fee, discount_amount, total, order_status, payment_method, payment_status, delivery_lat, delivery_lng, delivery_location_name, delivery_location_captured_at, created_at, updated_at').eq('id', id).single(),
-    client.from('order_items').select('id, order_id, product_id, variant_id, product_name_snapshot, sku_snapshot, variant_snapshot, product_snapshot, quantity, unit_price, line_total, created_at').eq('order_id', id).order('created_at').limit(100),
+    client.from('order_items').select('id, order_id, product_id, variant_id, seller_id, seller_name_snapshot, product_name_snapshot, sku_snapshot, variant_snapshot, product_snapshot, quantity, unit_price, line_total, vendor_fulfillment_status, tracking_number, tracking_url, vendor_note, vendor_updated_at, created_at').eq('order_id', id).order('created_at').limit(100),
     client.from('admin_order_notes').select('id, order_id, created_by, note, created_at').eq('order_id', id).order('created_at', { ascending: false }).limit(100),
   ])
   assertError(order.error); assertError(items.error); assertError(notes.error)
@@ -185,10 +214,33 @@ export async function adjustInventory(id: string, quantity: number, note: string
 }
 
 export async function listAdminCustomers(): Promise<AdminCustomer[]> {
-  const { data, error } = await getSupabase().from('profiles').select('id, full_name, phone, avatar_url, created_at, updated_at').order('created_at', { ascending: false }).limit(200)
+  const { data, error } = await getSupabase().rpc('admin_customer_summary')
   assertError(error)
-  const customers = (data ?? []) as Database['public']['Tables']['profiles']['Row'][]
-  return customers.map((customer) => ({ ...customer, email: null, order_count: null }))
+  return (data ?? []) as AdminCustomer[]
+}
+
+export async function getAdminStoreSettings(): Promise<AdminStoreSettings> {
+  const { data, error } = await getSupabase()
+    .from('store_settings')
+    .select('id, store_name, support_email, support_phone, support_whatsapp, delivery_fee, cod_enabled, return_window_days, updated_at')
+    .eq('id', 'default')
+    .single()
+  assertError(error)
+  return data as AdminStoreSettings
+}
+
+export async function updateAdminStoreSettings(input: {
+  store_name: string
+  support_email: string | null
+  support_phone: string | null
+  support_whatsapp: string | null
+  delivery_fee: number
+  cod_enabled: boolean
+  return_window_days: number
+}): Promise<AdminStoreSettings> {
+  const { data, error } = await getSupabase().rpc('admin_update_store_settings', { p_settings: input })
+  assertError(error)
+  return data as AdminStoreSettings
 }
 
 export async function listAuditLogs() {
@@ -241,7 +293,7 @@ export async function listAdminHeroes(): Promise<AdminHero[]> {
   return (data ?? []) as AdminHero[]
 }
 
-export async function saveAdminHero(input: Partial<AdminHero>, id?: string) {
+export async function saveAdminHero(input: Database['public']['Tables']['homepage_heroes']['Insert'], id?: string) {
   const client = getSupabase()
   const result = id
     ? await client.from('homepage_heroes').update(input).eq('id', id).select().single()
@@ -261,7 +313,7 @@ export async function listAdminPromotions(): Promise<AdminPromotion[]> {
   return (data ?? []) as AdminPromotion[]
 }
 
-export async function saveAdminPromotion(input: Partial<AdminPromotion>, id?: string) {
+export async function saveAdminPromotion(input: Database['public']['Tables']['promotions']['Insert'], id?: string) {
   const client = getSupabase()
   const result = id
     ? await client.from('promotions').update(input).eq('id', id).select().single()

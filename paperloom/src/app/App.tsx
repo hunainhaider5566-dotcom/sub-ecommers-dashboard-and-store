@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { CartProvider } from '../contexts/CartContext'
 import { CatalogProvider } from '../contexts/CatalogContext'
 import { AuthProvider } from '../contexts/AuthContext'
@@ -20,7 +20,8 @@ import { CartPage } from '../pages/CartPage'
 import { CheckoutPage } from '../pages/CheckoutPage'
 import { ConfirmationPage } from '../pages/ConfirmationPage'
 import { AboutPage, ContactPage, FAQPage, PrivacyPage, ShippingPage, ReturnsPage } from '../pages/InfoPages'
-import { AccountPage, LoginPage, RegisterPage, ForgotPasswordPage, VerifyEmailPage, VerifyOtpPage, ResetPasswordPage, LogoutPage } from '../pages/AuthPages'
+import { LoginPage, RegisterPage, ForgotPasswordPage, VerifyEmailPage, VerifyOtpPage, ResetPasswordPage, LogoutPage } from '../pages/AuthPages'
+import { AccountPage } from '../pages/AccountPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { VendorApplicationPage, VendorDashboardPage } from '../pages/VendorPages'
 
@@ -49,7 +50,7 @@ function Storefront() {
         <Route path="/wishlist" element={<WishlistPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/order-confirmation" element={<ConfirmationPage />} />
+        <Route path="/order-confirmation/:orderNumber" element={<ConfirmationPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/vendor/apply" element={<VendorApplicationPage />} />
         <Route path="/vendor" element={<VendorDashboardPage />} />
@@ -71,7 +72,6 @@ function Storefront() {
     </main>
     <SiteFooter />
     <MobileBottomNavigation />
-    <div className="reserved-admin-note" aria-label={t('Admin routes are reserved for a secured backend phase')}><Link to="/faq">{t('Admin tools are not available in this demo.')}</Link></div>
     <ScrollToTop />
   </div>
 }

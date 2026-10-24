@@ -1,3 +1,7 @@
+-- Canonical copy of the admin inventory adjustment migration.
+-- Moves the previously admin-only migration into the storefront migration chain
+-- so both applications share one ordered source of truth.
+
 BEGIN;
 
 CREATE OR REPLACE FUNCTION private.record_inventory_movement()
@@ -45,6 +49,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION private.record_inventory_movement() FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.admin_adjust_inventory(
   p_inventory_id uuid,
