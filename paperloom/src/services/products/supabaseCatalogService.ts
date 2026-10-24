@@ -1,14 +1,15 @@
 import { getSupabase } from '../../lib/supabase'
-import type { CatalogMode } from '../../config/backend'
 import type { Category } from '../../types/category'
 import type { Database, Json } from '../../types/database'
 import type { AvailabilityStatus, Product, ProductSpecification, ProductVariant } from '../../types/product'
+import type { PublicShop } from '../../types/shop'
 
 type ProductRow = Database['public']['Tables']['products']['Row']
 type CategoryRow = Database['public']['Tables']['categories']['Row']
 type ProductImageRow = Database['public']['Tables']['product_images']['Row']
 type ProductVariantRow = Database['public']['Tables']['product_variants']['Row']
 type AvailabilityRow = Database['public']['Functions']['get_public_availability']['Returns'][number]
+type PublicShopRow = Database['public']['Functions']['list_public_shops']['Returns'][number]
 
 function throwIfError(error: { message: string } | null) {
   if (error) throw new Error(error.message)
@@ -41,13 +42,24 @@ function mapCategory(row: CategoryRow): Category {
   }
 }
 
+function mapShop(row: PublicShopRow): PublicShop {
+  return {
+    id: row.id,
+    shopName: row.shop_name,
+    slug: row.slug,
+    description: row.description,
+    createdAt: row.created_at,
+    productCount: Number(row.product_count),
+  }
+}
+
 function mapImage(row: ProductImageRow): string {
   if (row.image_url) return row.image_url
   if (row.storage_path) return getSupabase().storage.from('product-images').getPublicUrl(row.storage_path).data.publicUrl
   return ''
 }
 
-function productStatus(value: boolean | undefined, isKnown: boolean): Exclude<AvailabilityStatus, 'demo' | 'unavailable'> {
+function productStatus(value: boolean | undefined, isKnown: boolean): Exclude<AvailabilityStatus, 'unavailable'> {
   if (!isKnown || value === undefined) return 'unknown'
   return value ? 'available' : 'out-of-stock'
 }
@@ -58,6 +70,7 @@ function mapProduct(
   variants: ProductVariantRow[],
   availabilityRows: AvailabilityRow[] | null,
   availabilityKnown: boolean,
+  shopsById: Map<string, PublicShop>,
 ): Product {
   const productAvailability = availabilityRows?.filter((item) => item.product_id === row.id) ?? []
   const availabilityByVariant = new Map(productAvailability.map((item) => [item.variant_id, item.is_available]))
@@ -82,6 +95,8 @@ function mapProduct(
     status = productStatus(availabilityByVariant.get(null), availabilityKnown)
   }
 
+  const shop = row.seller_id ? shopsById.get(row.seller_id) : undefined
+
   return {
     id: row.id,
     slug: row.slug,
@@ -98,29 +113,36 @@ function mapProduct(
     availabilityStatus: status,
     isFeatured: row.is_featured,
     trackInventory: row.track_inventory,
+    sellerId: row.seller_id,
+    sellerName: shop?.shopName ?? null,
+    sellerSlug: shop?.slug ?? null,
     createdAt: row.created_at,
   }
 }
 
 async function loadSupabaseCatalog() {
   const client = getSupabase()
-  const [productResult, categoryResult] = await Promise.all([
+  const [productResult, categoryResult, shopResult] = await Promise.all([
     client.from('products')
-      .select('id, category_id, name, slug, short_description, description, price, currency, specifications, publication_status, is_featured, track_inventory, created_at')
+      .select('id, category_id, seller_id, name, slug, sku, short_description, description, price, currency, specifications, publication_status, moderation_status, stock_verification_status, is_featured, track_inventory, created_at')
       .eq('publication_status', 'published')
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false }),
     client.from('categories')
       .select('id, parent_id, name, slug, description, eyebrow, image_url, is_active, sort_order, seo_title, seo_description, created_at, updated_at')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true }),
+    client.rpc('list_public_shops'),
   ])
   throwIfError(productResult.error)
   throwIfError(categoryResult.error)
 
-  const productRows = productResult.data ?? []
+  const productRows = (productResult.data ?? []) as ProductRow[]
   const categories = (categoryResult.data ?? []).map(mapCategory)
-  if (productRows.length === 0) return { products: [] as Product[], categories }
+  const shops = shopResult.error ? [] : (shopResult.data ?? []).map(mapShop)
+  const shopsById = new Map(shops.map((shop) => [shop.id, shop]))
+  if (productRows.length === 0) return { products: [] as Product[], categories, shops }
 
   const productIds = productRows.map((product) => product.id)
   const [imageResult, variantResult, availabilityResult] = await Promise.all([
@@ -148,19 +170,19 @@ async function loadSupabaseCatalog() {
   for (const variant of variants) variantsByProduct.set(variant.product_id, [...(variantsByProduct.get(variant.product_id) ?? []), variant])
 
   return {
-    products: (productRows as ProductRow[]).map((product) => mapProduct(
+    products: productRows.map((product) => mapProduct(
       product,
       imagesByProduct.get(product.id) ?? [],
       variantsByProduct.get(product.id) ?? [],
       availabilityRows,
       availabilityKnown,
+      shopsById,
     )),
     categories,
+    shops,
   }
 }
 
 export const catalogService = {
-  async loadCatalog(_mode: CatalogMode) {
-    return loadSupabaseCatalog()
-  },
+  loadCatalog: loadSupabaseCatalog,
 }

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, BookOpen, Check, Info, MessageCircle, PackageCheck, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Check, MessageCircle, PackageCheck, ShieldCheck, Store } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AvailabilityBadge } from '../components/products/AvailabilityBadge'
@@ -9,23 +9,16 @@ import { useCart } from '../contexts/CartContext'
 import { useCatalog } from '../contexts/CatalogContext'
 import { useToast } from '../contexts/ToastContext'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { useStoreSettings } from '../hooks/useStoreSettings'
 import { useI18n } from '../i18n/LocaleContext'
 import { formatPKR } from '../utils/money'
 import { supportDestination, productInquiryMessage } from '../utils/support'
 
-function CatalogNotice({ t, mode }: { t: (english: string) => string; mode: 'supabase' | 'demo' | 'unconfigured' }) {
-  const message = mode === 'demo'
-    ? 'Demo data — sample prices, descriptions and availability are not a live offer. Checkout is a demonstration and does not submit an order.'
-    : mode === 'supabase'
-      ? 'This product is read from the live catalog. Checkout is still a demonstration and does not submit an order.'
-      : 'The catalog is currently unavailable. No order can be submitted.'
-  return <div className="demo-notice demo-notice--compact" role="note"><Info size={16} aria-hidden="true" /><span><strong>{t(mode === 'demo' ? 'Demo mode.' : mode === 'supabase' ? 'Live catalog.' : 'Catalog unavailable.')}</strong> {t(message)}</span></div>
-}
-
 export function ProductPage() {
   const { t } = useI18n()
   const { slug = '' } = useParams()
-  const { status, error, mode, findProductBySlug, categories } = useCatalog()
+  const { status, error, findProductBySlug, categories } = useCatalog()
+  const settings = useStoreSettings()
   const product = findProductBySlug(slug)
   const [quantity, setQuantity] = useState(1)
   const [variantId, setVariantId] = useState(product?.variants[0]?.id ?? '')
@@ -45,7 +38,7 @@ export function ProductPage() {
     addLock.current = false
   }, [product?.id])
 
-  usePageMeta(product ? t(product.name) : t('Product not found'), product ? t(product.shortDescription) : t('This live catalog product could not be found.'))
+  usePageMeta(product ? t(product.name) : t('Product not found'), product ? t(product.shortDescription) : t('This catalog product could not be found.'))
   if (status === 'loading') return <div className="page-shell"><LoadingState label="Loading product details…" /></div>
   if (status === 'error') return <div className="page-shell"><ErrorState message={error || 'The catalog could not be loaded.'} /></div>
   if (status === 'unconfigured') return <div className="page-shell"><ErrorState message="The product catalog is temporarily unavailable." /></div>
@@ -57,9 +50,9 @@ export function ProductPage() {
   const activeImage = images[imageIndex]
   const selectedVariant = product.variants.find((variant) => variant.id === variantId)
   const price = selectedVariant?.price ?? product.price
-  const support = supportDestination(productInquiryMessage(productName, product.slug))
+  const support = supportDestination(productInquiryMessage(productName, product.slug), settings.supportWhatsapp)
   const availability = selectedVariant?.availabilityStatus ?? product.availabilityStatus
-  const canAdd = product.isPublished && availability !== 'out-of-stock' && availability !== 'unavailable'
+  const canAdd = product.isPublished && availability !== 'out-of-stock' && availability !== 'unavailable' && availability !== 'unknown'
   const previousImage = () => { setImageFailed(false); setImageIndex((current) => (current - 1 + images.length) % images.length) }
   const nextImage = () => { setImageFailed(false); setImageIndex((current) => (current + 1) % images.length) }
   function handleAdd() {
@@ -67,7 +60,7 @@ export function ProductPage() {
     addLock.current = true
     if (add(product, quantity, variantId || undefined, selectedVariant?.value)) {
       setAdded(true)
-      push(t('Added to demo cart.'))
+      push(t('Added to your cart.'), 'success')
       window.setTimeout(() => { addLock.current = false; setAdded(false) }, 2200)
     } else {
       addLock.current = false
@@ -76,7 +69,6 @@ export function ProductPage() {
 
   return <div className="page-shell product-detail-page">
     <Link to="/shop" className="back-link"><ArrowLeft size={15} /> {t('Back to collection')}</Link>
-    <CatalogNotice t={t} mode={mode} />
     <div className="product-detail">
       <div className="product-gallery" role="group" aria-label={`${productName} ${t('image gallery')}`}>
         <div className="product-gallery__main">
@@ -89,19 +81,19 @@ export function ProductPage() {
         </>}
       </div>
       <div className="product-detail__content">
-        <div className="product-detail__topline"><span className="eyebrow">{categoryName}{mode === 'demo' ? ` · ${t('SAMPLE')}` : ''}</span><WishlistButton productId={product.id} productName={productName} /></div>
+        <div className="product-detail__topline"><span className="eyebrow">{categoryName}</span><WishlistButton productId={product.id} productName={productName} /></div>
         <h1>{productName}</h1>
         <p className="product-detail__description">{t(product.description)}</p>
         <div className="product-price-row"><strong>{formatPKR(price)}</strong><AvailabilityBadge status={availability} /></div>
-        <p className="product-demo-caption">{mode === 'demo' ? t('Illustrative sample price') : t('Current published catalog price')} · {mode === 'demo' ? t('Demo data — sample prices, descriptions and availability are not a live offer.') : t('Availability is separate from publication; exact stock counts are not public.')}</p>
+        <p className="product-price-caption">{t('Published catalog price')} · {t('Availability is checked again when you place your order.')}</p>
         {product.variants.length > 0 && <fieldset className="variant-picker"><legend>{t(product.variants[0].label)}</legend><div className="variant-options">{product.variants.map((variant) => { const variantUnavailable = variant.availabilityStatus === 'out-of-stock'; return <button type="button" key={variant.id} className={`variant-option${variantId === variant.id ? ' is-selected' : ''}`} aria-pressed={variantId === variant.id} aria-disabled={variantUnavailable} onClick={() => setVariantId(variant.id)}><span>{t(variant.value)}{variant.price !== undefined && variant.price !== product.price ? ` · ${formatPKR(variant.price)}` : ''}</span>{variantId === variant.id && <Check size={14} />}{variantUnavailable && <small>{t('Out of stock')}</small>}</button> })}</div></fieldset>}
         <div className="detail-purchase-row"><span className="eyebrow">{t('Quantity')}</span><QuantitySelector value={quantity} onChange={setQuantity} label={`${t('Quantity for')} ${productName}`} /></div>
-        <button type="button" className="button button--dark button--full" disabled={!canAdd || added} onClick={handleAdd}>{added ? <><Check size={17} /> {t('Added to demo cart')}</> : <>{t('Add to demo cart')} <ArrowRight size={17} /></>}</button>
-        <p className="product-detail__reassurance"><ShieldCheck size={15} /> {t('No live checkout, COD or order submission.')}</p>
-        <div className="detail-accordions"><details><summary><span><BookOpen size={16} /> {t('Product details')}</span><span>+</span></summary><ul>{product.specifications.map((spec) => <li key={spec.label}><span>{t(spec.label)}</span><span>{t(spec.value)}</span></li>)}</ul></details><details><summary><span><PackageCheck size={16} /> {t('Shipping & returns')}</span><span>+</span></summary><p>{t('Shipping fees, timing and return terms have not been confirmed. Please treat all policy details as launch TODOs, not promises.')}</p><Link to="/shipping">{t('Read the provisional shipping note')}</Link></details></div>
+        <button type="button" className="button button--dark button--full" disabled={!canAdd || added} onClick={handleAdd}>{added ? <><Check size={17} /> {t('Added to cart')}</> : <>{t('Add to cart')} <ArrowRight size={17} /></>}</button>
+        <p className="product-detail__reassurance"><ShieldCheck size={15} /> {t(settings.codEnabled ? 'Cash on delivery. Prices and stock are validated when the order is placed.' : 'Prices and stock are validated when an order is placed.')}</p>
+        {product.sellerName && product.sellerSlug && <Link className="product-seller-link" to={`/shops/${product.sellerSlug}`}><Store size={15} /> {t('Sold by')} {product.sellerName}</Link>}
+        <div className="detail-accordions"><details><summary><span><BookOpen size={16} /> {t('Product details')}</span><span>+</span></summary><ul>{product.specifications.map((spec) => <li key={spec.label}><span>{t(spec.label)}</span><span>{t(spec.value)}</span></li>)}</ul></details><details><summary><span><PackageCheck size={16} /> {t('Shipping & returns')}</span><span>+</span></summary><p>{t('Delivery fee')}: {formatPKR(settings.deliveryFee)}. {t('Returns are accepted within')} {settings.returnWindowDays} {t('days of delivery through your account.')}</p><Link to="/returns">{t('Read the returns policy')}</Link></details></div>
         <a className="product-inquiry-link" href={support} target={support.startsWith('https://') ? '_blank' : undefined} rel={support.startsWith('https://') ? 'noopener noreferrer' : undefined}><MessageCircle size={16} /> {t('Ask a question about this listing')}</a>
       </div>
     </div>
-    <div className="product-bottom-note"><span className="eyebrow">{t('Before you add anything')}</span><CatalogNotice t={t} mode={mode} /></div>
   </div>
 }

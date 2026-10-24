@@ -1,7 +1,24 @@
 import { ArrowRight, CheckCircle2, PackageCheck } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, PackageCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { EmptyState, ErrorState, LoadingState } from '../components/common/States'
+import { useAuth } from '../contexts/AuthContext'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { useI18n } from '../i18n/LocaleContext'
+import { getMyOrderByNumber } from '../services/orders/orderService'
+import type { OrderRecord } from '../types/order'
+import { formatPKR } from '../utils/money'
+
+function addressLines(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  const address = value as Record<string, unknown>
+  const line1 = typeof address.address_line_1 === 'string' ? address.address_line_1 : ''
+  const line2 = typeof address.address_line_2 === 'string' ? address.address_line_2 : ''
+  const city = typeof address.city === 'string' ? address.city : ''
+  return [line1, line2, city].filter(Boolean)
+}
 
 export function ConfirmationPage() {
   const { t } = useI18n()

@@ -1,11 +1,9 @@
 import { useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Info, KeyRound, LockKeyhole, LogOut, Mail, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Info, KeyRound, LockKeyhole, LogOut, Mail, ShieldCheck } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../i18n/LocaleContext'
 import { authService } from '../services/auth/authService'
-import { UserAvatar } from '../components/common/UserAvatar'
-
 type AuthStatus = 'ready' | 'loading' | 'success' | 'error'
 type FieldErrors = Record<string, string>
 
@@ -100,14 +98,6 @@ function AuthLinks({ mode }: { mode: 'login' | 'register' }) {
   return <div className="auth-links">{mode === 'login' ? <><span>{t('No account?')}</span><Link to="/register" className="auth-link">{t('Register instead')}<ArrowRight size={15} aria-hidden="true" /></Link></> : <><span>{t('Already have an account?')}</span><Link to="/login" className="auth-link">{t('Sign in instead')}<ArrowRight size={15} aria-hidden="true" /></Link></>}</div>
 }
 
-export function AccountPage() {
-  const { t } = useI18n()
-  const { configured, loading, user, isAdmin, error, avatarUrl, displayName } = useAuth()
-  if (loading) return <section className="account-page"><div className="account-page__inner"><span className="auth-eyebrow">{t('Account')}</span><h1>{t('Restoring your session')}</h1><p role="status">{t('Verifying your session…')}</p></div></section>
-  if (!configured || !user) return <section className="account-page"><div className="account-page__inner"><div className="account-page__icon" aria-hidden="true"><UserRound size={28} /></div><span className="auth-eyebrow">{t('Account')}</span><h1>{t(configured ? 'Sign in to view your account' : 'Account access is not configured')}</h1><p>{t(configured ? 'You are not currently signed in.' : 'Account access is currently unavailable.')}</p>{error && <p className="account-page__note" role="alert">{t(error)}</p>}<div className="account-page__actions"><Link className="account-page__primary" to="/login">{t('Sign in')}<ArrowRight size={16} aria-hidden="true" /></Link><Link className="account-page__secondary" to="/register">{t('Create account')}</Link></div></div></section>
-  return <section className="account-page"><div className="account-page__inner">{avatarUrl ? <div className="account-page__avatar-frame"><UserAvatar avatarUrl={avatarUrl} name={displayName} size={36} className="account-page__avatar-img" /></div> : <div className="account-page__icon" aria-hidden="true"><UserRound size={28} /></div>}<span className="auth-eyebrow">{t('Account')}</span><h1>{displayName || t('Your account')}</h1>{user.email && <p className="account-page__email">{user.email}</p>}<p>{t('Signed in')}</p>{error && <p className="account-page__note" role="alert">{t(error)}</p>}<ul className="account-preview-grid" aria-label={t('Account features')}><li><h2>{t('Order history')}</h2><p>{t('View your placed orders and delivery status.')}</p></li><li><h2>{t('Returns & Complaints')}</h2><p>{t('Submit complaint or return requests with evidence photos.')}</p></li><li><h2>{t('Wishlist')}</h2><p><Link to="/wishlist">{t('View saved items')}</Link></p></li></ul>{isAdmin && <p className="account-page__note"><ShieldCheck size={17} aria-hidden="true" />{t('Administrator role verified by the database.')}</p>}<div className="account-page__actions"><Link className="account-page__secondary" to="/logout">{t('Sign out')}</Link><Link className="account-page__secondary" to="/">{t('Continue shopping')}</Link></div></div></section>
-}
-
 export function LoginPage() {
   const { t } = useI18n()
   const location = useLocation()
@@ -169,7 +159,7 @@ export function RegisterPage() {
     else if (form.password.length < 8) next.password = 'Password must be at least 8 characters.'
     if (!form.confirmation) next.confirmation = 'Password confirmation is required.'
     else if (form.password !== form.confirmation) next.confirmation = 'Passwords do not match.'
-    if (!form.terms) next.terms = 'Terms are required for the demo form.'
+    if (!form.terms) next.terms = 'Please accept the terms to create an account.'
     setErrors(next)
     if (Object.keys(next).length) return
     setStatus('loading'); setMessage('')

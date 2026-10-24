@@ -2,6 +2,7 @@ import { ArrowDownRight, ArrowRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n/LocaleContext'
+import { fetchActiveHomepageHeroes } from '../../services/marketplace/promotionsService'
 
 type HeroSlide = {
   id: string
@@ -15,13 +16,13 @@ type HeroSlide = {
   secondaryHref: string
   image: string
   imageAlt: string
-  supportingImage: string
-  supportingAlt: string
+  supportingImage?: string
+  supportingAlt?: string
   imageLabel: string
   viewLabel: string
 }
 
-const SLIDES: HeroSlide[] = [
+const FALLBACK_SLIDES: HeroSlide[] = [
   {
     id: 'editorial-desk',
     kicker: 'A considered collection',
@@ -35,8 +36,8 @@ const SLIDES: HeroSlide[] = [
     image: '/images/paperloom-hero.webp',
     imageAlt: 'An editorial arrangement of notebooks, planner pages and writing tools on a warm desk',
     supportingImage: '/images/study-notebook.webp',
-    supportingAlt: 'A sample study notebook beside the editorial desk arrangement',
-    imageLabel: 'Paperloom · everyday edit 01',
+    supportingAlt: 'A study notebook beside the editorial desk arrangement',
+    imageLabel: 'Meridion · everyday edit 01',
     viewLabel: 'View the editorial desk',
   },
   {
@@ -44,16 +45,16 @@ const SLIDES: HeroSlide[] = [
     kicker: 'Planning, with room to breathe',
     eyebrow: 'A little shape for the day',
     title: 'Plan the day. Keep the thought.',
-    description: 'A sample planning edit for days that need a little more shape. No live inventory is represented.',
-    primaryLabel: 'Browse planners',
-    primaryHref: '/categories/planners',
+    description: 'A considered planning edit for days that need a little more shape.',
+    primaryLabel: 'Browse the collection',
+    primaryHref: '/shop',
     secondaryLabel: 'See all categories',
     secondaryHref: '/categories',
     image: '/images/daily-planner.webp',
-    imageAlt: 'A daily planner opened to a clean sample page with writing tools nearby',
+    imageAlt: 'A daily planner opened to a clean page with writing tools nearby',
     supportingImage: '/images/study-notebook.webp',
-    supportingAlt: 'A study notebook layered with a daily planner sample',
-    imageLabel: 'Paperloom · planning edit 02',
+    supportingAlt: 'A study notebook layered with a daily planner',
+    imageLabel: 'Meridion · planning edit 02',
     viewLabel: 'View the planning edit',
   },
   {
@@ -61,19 +62,25 @@ const SLIDES: HeroSlide[] = [
     kicker: 'Journaling, in progress',
     eyebrow: 'A page for what is next',
     title: "A page for what's next.",
-    description: 'Sample journals, notebooks and study pieces for ideas still taking shape. This is a demo catalog.',
-    primaryLabel: 'Explore journals',
-    primaryHref: '/categories/journals',
-    secondaryLabel: 'Meet the study edit',
-    secondaryHref: '/categories/study-kits',
+    description: 'Journals, notebooks and study pieces for ideas still taking shape.',
+    primaryLabel: 'Explore the collection',
+    primaryHref: '/shop',
+    secondaryLabel: 'Browse categories',
+    secondaryHref: '/categories',
     image: '/images/linen-journal.webp',
     imageAlt: 'A linen-style journal and fountain pen arranged on a cream surface',
     supportingImage: '/images/study-kit.webp',
-    supportingAlt: 'A sample study kit with pens and notes beside a linen-style journal',
-    imageLabel: 'Paperloom · journal edit 03',
+    supportingAlt: 'A study kit with pens and notes beside a linen-style journal',
+    imageLabel: 'Meridion · journal edit 03',
     viewLabel: 'View the journal edit',
   },
 ]
+
+function safeHref(value: string | null): string {
+  if (!value) return '/shop'
+  if (value.startsWith('/') || value.startsWith('https://')) return value
+  return '/shop'
+}
 
 function preloadImage(src: string): Promise<void> {
   const image = new Image()
@@ -93,12 +100,42 @@ function preloadImage(src: string): Promise<void> {
 
 export function HeroSlider() {
   const { t } = useI18n()
+  const [slides, setSlides] = useState<HeroSlide[]>(FALLBACK_SLIDES)
   const [activeIndex, setActiveIndex] = useState(0)
   const [isHovered, setIsHovered] = useState(false)
   const [isFocusWithin, setIsFocusWithin] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
   const isPaused = isHovered || isFocusWithin
   const touchStartX = useRef<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchActiveHomepageHeroes()
+      .then((heroes) => {
+        if (cancelled || heroes.length === 0) return
+        setSlides(heroes.map((hero) => ({
+          id: hero.id,
+          kicker: hero.image_alt_text || 'Meridion Marketplace',
+          eyebrow: hero.subtitle || 'Featured',
+          title: hero.title,
+          description: hero.subtitle || '',
+          primaryLabel: hero.cta_text || 'Explore the collection',
+          primaryHref: safeHref(hero.cta_destination),
+          secondaryLabel: 'Browse categories',
+          secondaryHref: '/categories',
+          image: hero.image_url,
+          imageAlt: hero.image_alt_text || hero.title,
+          imageLabel: hero.title,
+          viewLabel: `View ${hero.title}`,
+        })))
+      })
+      .catch(() => { /* the editorial fallback remains available */ })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [slides.length])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -109,19 +146,16 @@ export function HeroSlider() {
   }, [])
 
   useEffect(() => {
-    if (isPaused || reducedMotion) return undefined
+    if (isPaused || reducedMotion || slides.length < 2) return undefined
 
     let cancelled = false
     let timer: number | undefined
-    const nextSlide = SLIDES[(activeIndex + 1) % SLIDES.length]
+    const nextSlide = slides[(activeIndex + 1) % slides.length]
 
-    void Promise.all([
-      preloadImage(nextSlide.image),
-      preloadImage(nextSlide.supportingImage),
-    ]).then(() => {
+    void preloadImage(nextSlide.image).then(() => {
       if (cancelled) return
       timer = window.setTimeout(() => {
-        setActiveIndex((current) => (current + 1) % SLIDES.length)
+        setActiveIndex((current) => (current + 1) % slides.length)
       }, 4500)
     })
 
@@ -129,10 +163,10 @@ export function HeroSlider() {
       cancelled = true
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [activeIndex, isPaused, reducedMotion])
+  }, [activeIndex, isPaused, reducedMotion, slides])
 
   const selectSlide = (index: number) => {
-    setActiveIndex((index + SLIDES.length) % SLIDES.length)
+    setActiveIndex((index + slides.length) % slides.length)
   }
   const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key === 'ArrowLeft') {
@@ -157,7 +191,8 @@ export function HeroSlider() {
     }
   }
 
-  const slide = SLIDES[activeIndex]
+  const activeSlide = slides[activeIndex] ?? slides[0]
+  if (!activeSlide) return null
 
   return (
     <section
@@ -175,35 +210,39 @@ export function HeroSlider() {
       data-motion={reducedMotion ? 'reduced' : 'full'}
     >
       <div className="hero-slider__viewport" aria-live={isPaused ? 'polite' : 'off'}>
-        <article key={slide.id} className="hero-slider__slide is-active" aria-roledescription="slide" aria-label={`${activeIndex + 1} / ${SLIDES.length}`}>
+        <article key={activeSlide.id} className="hero-slider__slide is-active" aria-roledescription="slide" aria-label={`${activeIndex + 1} / ${slides.length}`}>
           <div className="hero-slider__copy home-hero__copy">
-            <span className="hero-slider__kicker">{t(slide.kicker)}</span>
-            <p className="hero-slider__eyebrow">{t(slide.eyebrow)}</p>
-            <h1>{t(slide.title)}</h1>
-            <p className="hero-slider__description">{t(slide.description)}</p>
+            <span className="hero-slider__kicker">{t(activeSlide.kicker)}</span>
+            <p className="hero-slider__eyebrow">{t(activeSlide.eyebrow)}</p>
+            <h1>{t(activeSlide.title)}</h1>
+            <p className="hero-slider__description">{t(activeSlide.description)}</p>
             <div className="hero-slider__actions">
-              <Link className="hero-slider__primary" to={slide.primaryHref}>{t(slide.primaryLabel)} <ArrowRight size={16} aria-hidden="true" /></Link>
-              <Link className="hero-slider__secondary" to={slide.secondaryHref}>{t(slide.secondaryLabel)} <ArrowDownRight size={15} aria-hidden="true" /></Link>
+              <Link className="hero-slider__primary" to={activeSlide.primaryHref}>{t(activeSlide.primaryLabel)} <ArrowRight size={16} aria-hidden="true" /></Link>
+              <Link className="hero-slider__secondary" to={activeSlide.secondaryHref}>{t(activeSlide.secondaryLabel)} <ArrowDownRight size={15} aria-hidden="true" /></Link>
             </div>
-            <div className="hero-slider__footnote"><span>{String(activeIndex + 1).padStart(2, '0')}</span><span>{t('Current listings are sample catalog content; no order, payment or delivery request is sent.')}</span></div>
+            <div className="hero-slider__footnote"><span>{String(activeIndex + 1).padStart(2, '0')}</span><span>{t('Verified sellers · Live catalog')}</span></div>
           </div>
           <div className="hero-slider__visual">
             <div className="hero-slider__image-frame">
-              <img className="hero-slider__image" src={slide.image} alt={t(slide.imageAlt)} loading={activeIndex === 0 ? 'eager' : 'lazy'} />
-              <span className="hero-slider__image-label">{t(slide.imageLabel)}</span>
+              <img className="hero-slider__image" src={activeSlide.image} alt={t(activeSlide.imageAlt)} loading={activeIndex === 0 ? 'eager' : 'lazy'} />
+              <span className="hero-slider__image-label">{t(activeSlide.imageLabel)}</span>
             </div>
-            <img className="hero-slider__supporting-image" src={slide.supportingImage} alt={t(slide.supportingAlt)} loading="lazy" />
-            <Link className="hero-slider__image-link" to={slide.primaryHref} aria-label={t(slide.viewLabel)}><ArrowRight size={18} aria-hidden="true" /></Link>
+            {activeSlide.supportingImage && <img className="hero-slider__supporting-image" src={activeSlide.supportingImage} alt={t(activeSlide.supportingAlt ?? '')} loading="lazy" />}
+            <Link className="hero-slider__image-link" to={activeSlide.primaryHref} aria-label={t(activeSlide.viewLabel)}><ArrowRight size={18} aria-hidden="true" /></Link>
           </div>
         </article>
       </div>
 
-      <div className="hero-slider__controls" aria-hidden="true">
+      <div className="hero-slider__controls">
         <div className="hero-slider__indicators">
-          {SLIDES.map((item, index) => (
-            <span
+          {slides.map((item, index) => (
+            <button
               key={item.id}
+              type="button"
               className={`hero-slider__indicator${index === activeIndex ? ' is-active' : ''}`}
+              aria-label={`${t('Show slide')} ${index + 1}`}
+              aria-pressed={index === activeIndex}
+              onClick={() => selectSlide(index)}
             />
           ))}
         </div>

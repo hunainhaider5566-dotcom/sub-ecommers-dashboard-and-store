@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useCatalog } from './CatalogContext'
 import type { CartLine } from '../types/cart'
 import type { Product } from '../types/product'
@@ -42,7 +42,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(CART_KEY, JSON.stringify(lines))
   }, [lines])
 
-  const add: CartContextValue['add'] = (product, requested, variantId, variantLabel) => {
+  const add = useCallback<CartContextValue['add']>((product, requested, variantId, variantLabel) => {
     const currentProduct = findProductById(product.id)
     const selectedVariant = currentProduct?.variants.find((variant) => variant.id === variantId)
     const availability = selectedVariant?.availabilityStatus ?? currentProduct?.availabilityStatus
@@ -62,21 +62,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
     setMessage(`${product.name} added to your cart.`)
     return true
-  }
+  }, [findProductById])
 
-  const setQuantity: CartContextValue['setQuantity'] = (productId, variantId, quantity) => {
+  const setQuantity = useCallback<CartContextValue['setQuantity']>((productId, variantId, quantity) => {
     if (quantity <= 0) {
       setLines((current) => current.filter((line) => !(line.productId === productId && line.variantId === variantId)))
       return
     }
     const safeQuantity = Math.max(1, Math.min(99, Math.floor(quantity)))
     setLines((current) => current.map((line) => line.productId === productId && line.variantId === variantId ? { ...line, quantity: safeQuantity } : line))
-  }
+  }, [])
 
-  const remove: CartContextValue['remove'] = (productId, variantId) => {
+  const remove = useCallback<CartContextValue['remove']>((productId, variantId) => {
     setLines((current) => current.filter((line) => !(line.productId === productId && line.variantId === variantId)))
     setMessage('Item removed from your cart.')
-  }
+  }, [])
+
+  const clear = useCallback(() => {
+    setLines([])
+    setMessage('Your cart is clear.')
+  }, [])
 
   const value = useMemo(() => ({
     lines,
@@ -85,8 +90,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     add,
     setQuantity,
     remove,
-    clear: () => { setLines([]); setMessage('Your cart is clear.') },
-  }), [lines, message])
+    clear,
+  }), [lines, message, add, setQuantity, remove, clear])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

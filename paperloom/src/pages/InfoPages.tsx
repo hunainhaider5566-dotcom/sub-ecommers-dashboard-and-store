@@ -2,10 +2,11 @@ import { ArrowRight, ExternalLink, Leaf, MessageCircle, NotebookPen, ShieldCheck
 import { Link } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
 import { useWishlist } from '../contexts/WishlistContext'
-import { DemoModeNotice } from '../components/common/DemoModeNotice'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { useStoreSettings } from '../hooks/useStoreSettings'
 import { supportDestination } from '../utils/support'
 import { useI18n } from '../i18n/LocaleContext'
+import { formatPKR } from '../utils/money'
 
 function InfoLayout({ eyebrow, title, intro, children }: { eyebrow: string; title: React.ReactNode; intro: string; children: React.ReactNode }) {
   return <div className="page-shell info-page"><header className="info-page__heading"><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{intro}</p></header>{children}</div>
@@ -13,49 +14,96 @@ function InfoLayout({ eyebrow, title, intro, children }: { eyebrow: string; titl
 
 export function AboutPage() {
   const { t } = useI18n()
-  usePageMeta(t('About Paperloom'), t('A multi-category store concept; the sample stationery and study goods shown are one initial collection.'))
-  return <InfoLayout eyebrow={t('A little about us')} title={<>{t('Space for the')} <em>{t('everyday idea.')}</em></>} intro={t('Paperloom is a multi-category store concept. The sample stationery and study goods shown here are one initial collection; other categories may be considered in the future.')}><DemoModeNotice /><div className="info-feature-grid"><article><span><Leaf size={19} /></span><h2>{t('Thoughtful by design')}</h2><p>{t('A quiet visual language for considered goods, creative routines and everyday moments.')}</p></article><article><span><NotebookPen size={19} /></span><h2>{t('Useful, not precious')}</h2><p>{t('Useful goods should fit changing routines, thoughtful spaces and ordinary moments.')}</p></article><article><span><ShieldCheck size={19} /></span><h2>{t('Clear about what’s real')}</h2><p>{t('This storefront is in demo mode. Products, pricing, availability and business arrangements have not been confirmed.')}</p></article></div><section className="placeholder-panel"><span className="eyebrow">{t('Launch note')}</span><h2>{t('Details to confirm')}</h2><p>{t('Brand ownership, registered business details, sourcing and fulfillment arrangements remain to be verified before launch.')}</p></section></InfoLayout>
+  const settings = useStoreSettings()
+  usePageMeta(t('About Meridion'), t('A multi-vendor marketplace for thoughtful goods across everyday routines.'))
+  return <InfoLayout eyebrow={t('A little about us')} title={<>{t('Space for the')} <em>{t('everyday idea.')}</em></>} intro={t(`${settings.storeName} is a multi-vendor marketplace connecting independent sellers with buyers across Pakistan.`)}>
+    <div className="info-feature-grid">
+      <article><span><Leaf size={19} /></span><h2>{t('Thoughtful by design')}</h2><p>{t('A quiet visual language for considered goods, creative routines and everyday moments.')}</p></article>
+      <article><span><NotebookPen size={19} /></span><h2>{t('Useful, not precious')}</h2><p>{t('Useful goods should fit changing routines, thoughtful spaces and ordinary moments.')}</p></article>
+      <article><span><ShieldCheck size={19} /></span><h2>{t('Verified sellers')}</h2><p>{t('Seller applications are reviewed before products are published, and products pass a moderation step.')}</p></article>
+    </div>
+    <section className="placeholder-panel"><span className="eyebrow">{t('How the marketplace works')}</span><h2>{t('Buyer protection, built in')}</h2><p>{t('Orders, returns and complaints are recorded against your account. Cash on delivery orders are confirmed by the marketplace before fulfillment.')}</p><Link to="/shop" className="text-link">{t('Browse the catalog')} <ArrowRight size={15} /></Link></section>
+  </InfoLayout>
 }
 
 export function ContactPage() {
   const { t } = useI18n()
-  usePageMeta(t('Contact'), t('Contact options for the Paperloom demo storefront; verified support details have not yet been configured.'))
-  const destination = supportDestination(t('Hello, I have a question about the Paperloom demo storefront.'))
-  return <InfoLayout eyebrow={t('Questions & notes')} title={<>{t('Let’s keep the')} <em>{t('conversation clear.')}</em></>} intro={t('A verified business email, address and support channel have not yet been configured. We won’t invent contact details.')}><DemoModeNotice compact /><section className="placeholder-panel contact-placeholder"><span className="contact-placeholder__icon"><MessageCircle size={21} /></span><div><span className="eyebrow">{t('Customer support')}</span><h2>{t('Contact details pending')}</h2><p>{t('A verified support email or business-controlled WhatsApp number has not yet been configured.')}</p>{destination.startsWith('https://') ? <a className="button button--dark" href={destination} target="_blank" rel="noopener noreferrer">{t('Open WhatsApp')} <ExternalLink size={15} /></a> : <Link className="text-link" to="/faq">{t('Read the demo FAQ')} <ArrowRight size={15} /></Link>}</div></section></InfoLayout>
+  const settings = useStoreSettings()
+  usePageMeta(t('Contact'), t('Contact Meridion Marketplace support.'))
+  const destination = supportDestination(undefined, settings.supportWhatsapp)
+  const email = settings.supportEmail
+  const phone = settings.supportPhone
+  return <InfoLayout eyebrow={t('Questions & notes')} title={<>{t('Let’s keep the')} <em>{t('conversation clear.')}</em></>} intro={t('Reach the marketplace support team for help with orders, delivery, returns or seller questions.')}>
+    <section className="placeholder-panel contact-placeholder">
+      <span className="contact-placeholder__icon"><MessageCircle size={21} /></span>
+      <div>
+        <span className="eyebrow">{t('Customer support')}</span>
+        <h2>{t('We are here to help')}</h2>
+        {email || phone ? <p>{email && <>{t('Email us at')} <a className="text-link" href={`mailto:${email}`}>{email}</a></>}{email && phone ? ' · ' : null}{phone && <>{t('Call')} <a className="text-link" href={`tel:${phone.replace(/\s/g, '')}`}>{phone}</a></>}</p> : <p>{t('Support contact details have not been published yet. You can still track orders and open a case from your account.')}</p>}
+        {destination.startsWith('https://') && <a className="button button--dark" href={destination} target="_blank" rel="noopener noreferrer">{t('Open WhatsApp')} <ExternalLink size={15} /></a>}
+        <p><Link className="text-link" to="/faq">{t('Read the FAQ')} <ArrowRight size={15} /></Link></p>
+      </div>
+    </section>
+  </InfoLayout>
 }
-
-const faqItems = [
-  { question: 'Is Paperloom accepting orders?', answer: 'No. This is a frontend demo. Live order submission is disabled and the confirmation screen explicitly states that no order or delivery request was created.' },
-  { question: 'Is cash on delivery available?', answer: 'No. COD is disabled in the demo. Payment availability has not been confirmed for any future launch.' },
-  { question: 'Are the sample products in stock?', answer: 'No stock is represented as confirmed. Sample listings are visual and interaction data only, and no vendor partnership is claimed.' },
-  { question: 'What is the delivery fee or timeline?', answer: 'Neither the delivery fee nor delivery timings are confirmed. The demo does not promise free delivery, a courier or a delivery date.' },
-  { question: 'What is the return or refund policy?', answer: 'The business has not confirmed return or refund terms. The returns page is an editable launch template, not a promise or final policy.' },
-  { question: 'How do I contact support?', answer: 'A verified contact method has not been configured. The Support destination links to the Contact page until a business-controlled WhatsApp number is supplied.' },
-  { question: 'Does checkout save my details?', answer: 'No. Form values stay in browser memory while the page is open; the demo does not transmit or store customer details. Cart quantities and wishlist IDs are stored locally in this browser.' },
-]
 
 export function FAQPage() {
   const { t } = useI18n()
-  usePageMeta(t('Frequently asked questions'), t('Answers about the Paperloom demo storefront, sample products and unconfirmed business policies.'))
-  return <InfoLayout eyebrow={t('Helpful notes')} title={<>{t('Frequently')} <em>{t('asked.')}</em></>} intro={t('Straight answers about what this demo does—and what still needs to be confirmed.')}><DemoModeNotice compact /><div className="info-accordion">{faqItems.map((item) => <details className="faq-item" key={item.question}><summary>{t(item.question)}<span aria-hidden="true">+</span></summary><p>{t(item.answer)}</p></details>)}</div></InfoLayout>
+  const settings = useStoreSettings()
+  usePageMeta(t('Frequently asked questions'), t('Answers about ordering, delivery, returns and seller verification.'))
+  const faqItems = [
+    { question: 'Is Meridion accepting orders?', answer: settings.codEnabled ? 'Yes. Signed-in customers can place cash-on-delivery orders from published products. The marketplace validates price, stock and delivery fee when the order is created.' : 'Cash on delivery is currently paused, so checkout is unavailable. Published products and their stock status can still be browsed.' },
+    { question: 'Is cash on delivery available?', answer: settings.codEnabled ? `Yes. Cash on delivery is available, with a delivery fee of ${formatPKR(settings.deliveryFee)} per order.` : 'Cash on delivery is currently paused. Please contact support before ordering.' },
+    { question: 'How is stock confirmed?', answer: 'Availability is shown from the published catalog and checked again by the database when you place an order. If an item sells out first, the order is rejected safely.' },
+    { question: 'What is the delivery timeline?', answer: 'Delivery timing depends on the seller and courier. You can track order and vendor fulfilment status from your account after placing an order.' },
+    { question: 'What is the return or refund policy?', answer: `Returns and complaints can be opened from your account within ${settings.returnWindowDays} days of delivery. Include a reason and, where useful, evidence. The seller responds and the marketplace reviews the case.` },
+    { question: 'How do I contact support?', answer: settings.supportEmail ? `Email ${settings.supportEmail} or use the contact page. Include your order number so we can help faster.` : 'Use the contact page for the support details published by the marketplace. Include your order number so we can help faster.' },
+    { question: 'What happens to my checkout details?', answer: 'Your order and delivery details are stored with your account so you can track the order, save addresses and open a return. Your cart is kept on this device until you place the order.' },
+  ]
+  return <InfoLayout eyebrow={t('Helpful notes')} title={<>{t('Frequently')} <em>{t('asked.')}</em></>} intro={t('Straight answers about ordering, delivery and marketplace policies.')}><div className="info-accordion">{faqItems.map((item) => <details className="faq-item" key={item.question}><summary>{t(item.question)}<span aria-hidden="true">+</span></summary><p>{t(item.answer)}</p></details>)}</div></InfoLayout>
 }
 
 export function PrivacyPage() {
   const { t } = useI18n()
-  usePageMeta(t('Privacy note'), t('A demo privacy note describing local cart and wishlist storage and the checkout form’s non-transmitting behavior.'))
   const cart = useCart()
   const wishlist = useWishlist()
-  return <InfoLayout eyebrow={t('Privacy · demo template')} title={<>{t('A careful note on')} <em>{t('your details.')}</em></>} intro={t('This is an editable placeholder for a future verified privacy policy, not final legal advice.')}><DemoModeNotice /><article className="policy-copy"><h2>{t('What this demo does')}</h2><p>{t('Checkout form values remain in browser memory only. This demo does not submit customer information to a business, vendor, courier, analytics provider or other external service.')}</p><h2>{t('What is saved on this device')}</h2><p>{t('For convenience, this browser stores demo cart product IDs and quantities and wishlist product IDs in local storage. These are not customer records. Clear them below or remove the site’s local storage from your browser settings.')}</p><button type="button" className="button button--outline" onClick={() => { cart.clear(); wishlist.ids.forEach((id) => wishlist.toggle(id)) }}>{t('Clear local demo cart & wishlist')}</button><h2>{t('Before a real launch')}</h2><p>{t('Confirm the legal business identity, information collected, purpose, retention period, processors, contact channel and applicable privacy terms before enabling a production checkout.')}</p></article></InfoLayout>
+  usePageMeta(t('Privacy'), t('How Meridion Marketplace stores account, order and cart information.'))
+  return <InfoLayout eyebrow={t('Privacy')} title={<>{t('A careful note on')} <em>{t('your details.')}</em></>} intro={t('This page explains what the marketplace stores and why. It is not legal advice.')}>
+    <article className="policy-copy">
+      <h2>{t('Account and order information')}</h2><p>{t('When you create an account, your name, email and (optionally) phone number are stored to identify you and secure your account. When you place an order, your recipient name, phone, delivery address and optional location pin are stored against that order so it can be fulfilled and supported.')}</p>
+      <h2>{t('Cart and wishlist')}</h2><p>{t('Your cart is stored in this browser until you place an order. Wishlist items are stored in this browser for guests and with your account after you sign in.')}</p>
+      <button type="button" className="button button--outline" onClick={() => { cart.clear(); wishlist.ids.forEach((id) => { void wishlist.toggle(id) }) }}>{t('Clear local cart & wishlist')}</button>
+      <h2>{t('Who can see your information')}</h2><p>{t('Sellers receive only the order details needed to fulfil their items. Marketplace administrators can review orders, sellers and cases to resolve issues. Supplier costs and private seller documents are never shown to buyers.')}</p>
+      <h2>{t('Your choices')}</h2><p>{t('You can update saved addresses and remove wishlist items from your account. To request deletion of your account or order data, contact support with your account email and order numbers.')}</p>
+    </article>
+  </InfoLayout>
 }
 
 export function ShippingPage() {
   const { t } = useI18n()
-  usePageMeta(t('Shipping policy placeholder'), t('Shipping fee, courier arrangements and delivery timelines are not confirmed. This is an editable launch placeholder.'))
-  return <InfoLayout eyebrow={t('Shipping · editable template')} title={<>{t('The delivery details,')} <em>{t('when confirmed.')}</em></>} intro={t('No shipping terms or courier arrangements are currently confirmed.')}><DemoModeNotice /><article className="policy-copy"><h2>{t('Delivery fee')}</h2><p>{t('Confirm a delivery-fee schedule by destination. The demo has no configured delivery fee and does not represent delivery as free.')}</p><h2>{t('Courier and delivery timing')}</h2><p>{t('Confirm an actual fulfillment partner, service area and realistic delivery timelines before communicating them publicly. No courier partnership or date is promised by this demo.')}</p><h2>{t('Order updates')}</h2><p>{t('This frontend does not create real orders or send fulfillment updates. Live order and courier communications require a secured backend and verified arrangements.')}</p></article><Link to="/contact" className="text-link">{t('Contact details are pending')} <ArrowRight size={15} /></Link></InfoLayout>
+  const settings = useStoreSettings()
+  usePageMeta(t('Shipping and delivery'), t('Delivery fee, order handling and delivery timelines.'))
+  return <InfoLayout eyebrow={t('Shipping & delivery')} title={<>{t('The delivery details,')} <em>{t('clearly.')}</em></>} intro={t('How orders are handled from checkout to delivery.')}>
+    <article className="policy-copy">
+      <h2>{t('Delivery fee')}</h2><p>{t('A delivery fee of')} {formatPKR(settings.deliveryFee)} {t('is added to each order. The final fee is validated by the marketplace when the order is placed.')}</p>
+      <h2>{t('Order handling')}</h2><p>{t('Orders are split by seller for fulfilment. Each seller confirms and processes their items, and the overall order status is updated as delivery progresses.')}</p>
+      <h2>{t('Delivery timing')}</h2><p>{t('Timing depends on the seller, destination and courier. Track the latest status and tracking details from your account.')}</p>
+      <h2>{t('Location pin')}</h2><p>{t('You can optionally share a GPS pin at checkout to help the courier find your address. You can also leave it blank and provide a street address.')}</p>
+    </article>
+    <Link to="/contact" className="text-link">{t('Contact support')} <ArrowRight size={15} /></Link>
+  </InfoLayout>
 }
 
 export function ReturnsPage() {
   const { t } = useI18n()
-  usePageMeta(t('Returns policy placeholder'), t('Return and refund terms have not been confirmed. This is an editable launch placeholder, not a guarantee.'))
-  return <InfoLayout eyebrow={t('Returns · editable template')} title={<>{t('A fair policy,')} <em>{t('to be confirmed.')}</em></>} intro={t('Return periods, condition rules and refund methods have not been set. This page is a launch TODO, not a guarantee.')}><DemoModeNotice /><article className="policy-copy"><h2>{t('Returns and exchanges')}</h2><p>{t('Confirm whether returns or exchanges will be offered, the applicable time window, product-condition requirements, exclusions, shipping costs and the contact process.')}</p><h2>{t('Refunds')}</h2><p>{t('Confirm eligible payment methods, refund processing responsibilities and realistic timing. No refund guarantee is made by this demo.')}</p><h2>{t('For this demonstration')}</h2><p>{t('Checkout is not live and creates no order, payment, shipment or return request.')}</p></article><Link to="/faq" className="text-link">{t('See the FAQ')} <ArrowRight size={15} /></Link></InfoLayout>
+  const settings = useStoreSettings()
+  usePageMeta(t('Returns and complaints'), t('How to open a return, refund or complaint from your account.'))
+  return <InfoLayout eyebrow={t('Returns & complaints')} title={<>{t('A fair process,')} <em>{t('in your account.')}</em></>} intro={t('Open a return, refund or complaint against a delivered order item.')}>
+    <article className="policy-copy">
+      <h2>{t('Return window')}</h2><p>{t('Open a case within')} {settings.returnWindowDays} {t('days of delivery. Include the item, the reason and any evidence that helps the seller understand the issue.')}</p>
+      <h2>{t('What happens next')}</h2><p>{t('The seller can respond, and the marketplace reviews the case. You can follow the status from your account. Decisions are recorded against the case.')}</p>
+      <h2>{t('Refunds')}</h2><p>{t('Approved refunds are handled through the original payment method where possible. Cash-on-delivery orders are refunded using the arrangement confirmed in the case.')}</p>
+    </article>
+    <Link to="/account" className="text-link">{t('Go to your account')} <ArrowRight size={15} /></Link>
+  </InfoLayout>
 }

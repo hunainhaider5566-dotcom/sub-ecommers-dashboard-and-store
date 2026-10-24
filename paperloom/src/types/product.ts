@@ -1,4 +1,4 @@
-export type AvailabilityStatus = 'demo' | 'available' | 'out-of-stock' | 'unavailable' | 'unknown'
+export type AvailabilityStatus = 'available' | 'out-of-stock' | 'unavailable' | 'unknown'
 
 export interface ProductVariant {
   id: string
@@ -6,7 +6,7 @@ export interface ProductVariant {
   value: string
   price?: number
   sku?: string
-  availabilityStatus?: Exclude<AvailabilityStatus, 'demo' | 'unavailable'>
+  availabilityStatus?: Exclude<AvailabilityStatus, 'unavailable'>
 }
 
 export interface ProductSpecification {

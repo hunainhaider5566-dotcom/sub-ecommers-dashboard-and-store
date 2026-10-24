@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Archive, ArrowLeft, BarChart3, Boxes, Check, ChevronRight, CircleAlert, ClipboardList, Edit2, Eye, EyeOff, FolderTree, Image as ImageIcon, LayoutDashboard, LogOut, Menu, MessageSquare, Package, Plus, RefreshCw, Search, ShieldAlert, Store, Tag, Users, X } from 'lucide-react'
+import { Archive, ArrowLeft, BarChart3, Boxes, Check, ChevronRight, CircleAlert, ClipboardList, Edit2, Eye, EyeOff, FolderTree, Image as ImageIcon, LayoutDashboard, LogOut, Menu, MessageSquare, Package, Plus, RefreshCw, Search, Settings, ShieldAlert, Store, Tag, Users, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { addOrderNote, adjustInventory, decideMarketplaceCase, deleteAdminHero, deleteAdminPromotion, deleteProductVariant, getAdminOrderDetail, getAdminProductEditor, getAdminSummary, listAdminCategories, listAdminCustomers, listAdminHeroes, listAdminInventory, listAdminOrders, listAdminProducts, listAdminPromotions, listAuditLogs, listMarketplaceCases, listSellerApplications, moderateProduct, reviewSellerApplication, saveAdminHero, saveAdminPromotion, saveCategory, saveProduct, saveProductVariant, updateOrder, updateProductStatus, uploadProductImage, type AdminCase, type AdminCategory, type AdminCustomer, type AdminHero, type AdminInventory, type AdminOrder, type AdminProduct, type AdminPromotion, type AdminSeller, type AdminSummary, type AdminVariant } from '../services/admin/adminService'
+import { addOrderNote, adjustInventory, decideMarketplaceCase, deleteAdminHero, deleteAdminPromotion, deleteProductVariant, getAdminOrderDetail, getAdminProductEditor, getAdminStoreSettings, getAdminSummary, getVendorDocumentSignedUrl, listAdminCategories, listAdminCustomers, listAdminHeroes, listAdminInventory, listAdminOrders, listAdminProducts, listAdminPromotions, listAuditLogs, listMarketplaceCases, listSellerApplications, moderateProduct, reviewSellerApplication, saveAdminHero, saveAdminPromotion, saveCategory, saveProduct, saveProductVariant, updateAdminStoreSettings, updateOrder, updateProductStatus, uploadProductImage, type AdminCase, type AdminCategory, type AdminCustomer, type AdminHero, type AdminInventory, type AdminOrder, type AdminProduct, type AdminPromotion, type AdminSeller, type AdminStoreSettings, type AdminSummary, type AdminVariant } from '../services/admin/adminService'
 import type { Database } from '../types/database'
 import '../admin.css'
 
@@ -18,6 +18,7 @@ const nav = [
   { to: '/admin/sellers', label: 'Sellers', icon: Store },
   { to: '/admin/cases', label: 'Cases', icon: MessageSquare },
   { to: '/admin/customers', label: 'Customers', icon: Users },
+  { to: '/admin/settings', label: 'Store settings', icon: Settings },
   { to: '/admin/audit', label: 'Audit log', icon: ShieldAlert },
 ]
 
@@ -70,6 +71,7 @@ function AdminContent({ path }: { path: string }) {
   if (path === '/admin/sellers') return <Sellers />
   if (path === '/admin/cases') return <Cases />
   if (path === '/admin/customers') return <Customers />
+  if (path === '/admin/settings') return <StoreSettings />
   return <Audit />
 }
 
@@ -81,7 +83,7 @@ function Overview() {
   useEffect(load, [])
   if (error) return <ErrorState message={error} retry={load} />
   if (!summary) return <Loading />
-  return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">A clear view of what needs attention</p><h2>Good morning, keep things moving.</h2></div><button className="admin-button admin-button--outline" onClick={load}><RefreshCw size={15} /> Refresh</button></div><div className="admin-metrics"><Metric label="All products" value={summary.total_products} note={`${summary.published_products} published`} /><Metric label="Active categories" value={summary.active_categories} /><Metric label="Pending orders" value={summary.pending_orders} note={`${summary.open_orders} open orders`} /><Metric label="Paid revenue" value={formatMoney(summary.paid_delivered_value)} note="Delivered and paid" /></div><div className="admin-grid-2"><div className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-kicker">Latest activity</p><h3>Recent orders</h3></div><Link to="/admin/orders">View all <ChevronRight size={14} /></Link></div>{orders.length === 0 ? <Empty title="No orders yet" detail="Real orders will appear here once the storefront is connected to checkout." /> : <div className="admin-list">{orders.map((order) => <Link className="admin-list-row" to="/admin/orders" key={order.id}><span><strong>{order.order_number}</strong><small>{order.customer_name} · {formatDate(order.created_at)}</small></span><span><b>{formatMoney(order.total)}</b><em className={statusClass(order.order_status)}>{order.order_status}</em></span></Link>)}</div>}</div><div className="admin-panel admin-panel--tint"><div className="admin-panel-heading"><div><p className="admin-kicker">Operational note</p><h3>Live data only</h3></div><BarChart3 size={20} /></div><p className="admin-copy">This dashboard reads the connected Paperloom Supabase project. Empty tables are shown as empty; no sample products, orders, or revenue are created.</p><div className="admin-callout"><Check size={17} /> RLS and the admin role are enforced by the database.</div></div></div></section>
+  return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">A clear view of what needs attention</p><h2>Good morning, keep things moving.</h2></div><button className="admin-button admin-button--outline" onClick={load}><RefreshCw size={15} /> Refresh</button></div><div className="admin-metrics"><Metric label="All products" value={summary.total_products} note={`${summary.published_products} published`} /><Metric label="Active categories" value={summary.active_categories} /><Metric label="Pending orders" value={summary.pending_orders} note={`${summary.open_orders} open orders`} /><Metric label="Paid revenue" value={formatMoney(summary.paid_delivered_value)} note="Delivered and paid" /></div><div className="admin-grid-2"><div className="admin-panel"><div className="admin-panel-heading"><div><p className="admin-kicker">Latest activity</p><h3>Recent orders</h3></div><Link to="/admin/orders">View all <ChevronRight size={14} /></Link></div>{orders.length === 0 ? <Empty title="No orders yet" detail="Real orders will appear here once buyers complete checkout." /> : <div className="admin-list">{orders.map((order) => <Link className="admin-list-row" to="/admin/orders" key={order.id}><span><strong>{order.order_number}</strong><small>{order.customer_name} · {formatDate(order.created_at)}</small></span><span><b>{formatMoney(order.total)}</b><em className={statusClass(order.order_status)}>{order.order_status}</em></span></Link>)}</div>}</div><div className="admin-panel admin-panel--tint"><div className="admin-panel-heading"><div><p className="admin-kicker">Operational note</p><h3>Live data only</h3></div><BarChart3 size={20} /></div><p className="admin-copy">This dashboard reads the connected Meridion Supabase project. Empty tables are shown as empty; no sample products, orders, or revenue are created.</p><div className="admin-callout"><Check size={17} /> RLS and the admin role are enforced by the database.</div></div></div></section>
 }
 
 function Products() {
@@ -120,7 +122,7 @@ function Orders() {
   const load = () => void listAdminOrders(search, status).then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Orders could not be loaded.'))
   useEffect(load, [search, status])
   async function changeStatus(order: AdminOrder, next: Database['public']['Tables']['orders']['Row']['order_status']) { try { await updateOrder(order.id, { order_status: next }); push(`Order ${order.order_number} updated.`); load() } catch (cause) { push(cause instanceof Error ? cause.message : 'The database rejected this transition.', 'error') } }
-  return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Fulfilment workflow</p><h2>Orders</h2></div></div><div className="admin-toolbar"><label className="admin-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order or customer" /></label><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{['pending','confirmed','processing','shipped','delivered','cancelled'].map((value) => <option key={value}>{value}</option>)}</select></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No orders found" detail="Orders are read from the live orders table. The storefront currently keeps checkout in demo mode." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th>Next action</th></tr></thead><tbody>{items.map((order) => <tr key={order.id}><td><button className="admin-link-button" onClick={() => setSelected(order)}><strong>{order.order_number}</strong><small>{formatDate(order.created_at)}</small></button></td><td>{order.customer_name}<small>{order.customer_phone}</small></td><td>{formatMoney(order.total)}</td><td><em className={statusClass(order.payment_status)}>{order.payment_status}</em></td><td><em className={statusClass(order.order_status)}>{order.order_status}</em></td><td>{order.order_status === 'pending' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'confirmed')}>Confirm</button>}{order.order_status === 'confirmed' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'processing')}>Process</button>}{order.order_status === 'processing' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'shipped')}>Ship</button>}{order.order_status === 'shipped' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'delivered')}>Deliver</button>}</td></tr>)}</tbody></table></div>}{selected && <OrderDrawer order={selected} onClose={() => setSelected(null)} />}</section>
+  return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Fulfilment workflow</p><h2>Orders</h2></div></div><div className="admin-toolbar"><label className="admin-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order or customer" /></label><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option>{['pending','confirmed','processing','shipped','delivered','cancelled'].map((value) => <option key={value}>{value}</option>)}</select></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No orders found" detail="Orders are read from the live orders table. New cash-on-delivery orders appear here immediately after a buyer completes checkout." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Order</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th>Next action</th></tr></thead><tbody>{items.map((order) => <tr key={order.id}><td><button className="admin-link-button" onClick={() => setSelected(order)}><strong>{order.order_number}</strong><small>{formatDate(order.created_at)}</small></button></td><td>{order.customer_name}<small>{order.customer_phone}</small></td><td>{formatMoney(order.total)}</td><td><em className={statusClass(order.payment_status)}>{order.payment_status}</em></td><td><em className={statusClass(order.order_status)}>{order.order_status}</em></td><td>{order.order_status === 'pending' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'confirmed')}>Confirm</button>}{order.order_status === 'confirmed' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'processing')}>Process</button>}{order.order_status === 'processing' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'shipped')}>Ship</button>}{order.order_status === 'shipped' && <button className="admin-small-button" onClick={() => void changeStatus(order, 'delivered')}>Deliver</button>}</td></tr>)}</tbody></table></div>}{selected && <OrderDrawer order={selected} onClose={() => setSelected(null)} />}</section>
 }
 
 function OrderDrawer({ order, onClose }: { order: AdminOrder; onClose: () => void }) {
@@ -229,11 +231,115 @@ function OrderDrawer({ order, onClose }: { order: AdminOrder; onClose: () => voi
 
 function Inventory() { const { push } = useToast(); const [items, setItems] = useState<AdminInventory[]>([]); const [error, setError] = useState<string | null>(null); const load = () => void listAdminInventory().then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Inventory could not be loaded.')); useEffect(load, []); async function change(item: AdminInventory) { const value = window.prompt(`Set quantity for ${item.product_name}`, String(item.quantity)); if (value === null) return; const note = window.prompt('Why is this quantity changing?', 'Admin adjustment'); if (note === null) return; try { await adjustInventory(item.id, Number(value), note); push('Inventory updated.'); load() } catch (cause) { push(cause instanceof Error ? cause.message : 'Inventory update failed.', 'error') } } return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Stock control</p><h2>Inventory</h2></div></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No inventory records" detail="Inventory records are created when products are configured for tracking." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Product</th><th>Variant</th><th>Quantity</th><th>Threshold</th><th>Updated</th><th /></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.product_name}</strong></td><td>{item.variant_name ?? 'Base product'}</td><td><strong className={item.low_stock_threshold !== null && item.quantity <= item.low_stock_threshold ? 'admin-low-stock' : ''}>{item.quantity}</strong></td><td>{item.low_stock_threshold ?? '—'}</td><td>{formatDate(item.updated_at)}</td><td><button className="admin-small-button" onClick={() => void change(item)}>Adjust</button></td></tr>)}</tbody></table></div>}</section> }
 
-function Sellers() { const { push } = useToast(); const [items, setItems] = useState<AdminSeller[]>([]); const [status, setStatus] = useState('pending'); const [error, setError] = useState<string | null>(null); const load = () => void listSellerApplications(status).then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Seller applications could not be loaded.')); useEffect(load, [status]); async function review(item: AdminSeller, next: AdminSeller['status']) { const reason = next === 'rejected' || next === 'suspended' ? window.prompt('Record a review reason', item.rejection_reason ?? '') : undefined; if ((next === 'rejected' || next === 'suspended') && reason === null) return; try { await reviewSellerApplication(item.id, next, reason ?? undefined); push(`Seller ${next}.`); load() } catch (cause) { push(cause instanceof Error ? cause.message : 'Seller review failed.', 'error') } } return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Marketplace governance</p><h2>Seller applications</h2></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="suspended">Suspended</option><option value="all">All</option></select></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No seller applications" detail="New seller applications will appear here after the reviewed marketplace migration is applied." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Shop</th><th>Contact</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.shop_name}</strong><small>{item.slug}<br />{item.description || 'No description'}</small></td><td>{item.contact_email ?? '—'}</td><td><em className={statusClass(item.status)}>{item.status}</em></td><td>{formatDate(item.created_at)}</td><td><div className="admin-action-row">{item.status === 'pending' && <><button className="admin-small-button" onClick={() => void review(item, 'approved')}>Approve</button><button className="admin-small-button admin-small-button--danger" onClick={() => void review(item, 'rejected')}>Reject</button></>}{item.status === 'approved' && <button className="admin-small-button admin-small-button--danger" onClick={() => void review(item, 'suspended')}>Suspend</button>}{item.status === 'suspended' && <button className="admin-small-button" onClick={() => void review(item, 'approved')}>Reactivate</button>}</div></td></tr>)}</tbody></table></div>}</section> }
+function Sellers() { const { push } = useToast(); const [items, setItems] = useState<AdminSeller[]>([]); const [status, setStatus] = useState('pending'); const [error, setError] = useState<string | null>(null); const load = () => void listSellerApplications(status).then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Seller applications could not be loaded.')); useEffect(load, [status]); async function review(item: AdminSeller, next: AdminSeller['status']) { const reason = next === 'rejected' || next === 'suspended' ? window.prompt('Record a review reason', item.rejection_reason ?? '') : undefined; if ((next === 'rejected' || next === 'suspended') && reason === null) return; try { await reviewSellerApplication(item.id, next, reason ?? undefined); push(`Seller ${next}.`); load() } catch (cause) { push(cause instanceof Error ? cause.message : 'Seller review failed.', 'error') } } return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Marketplace governance</p><h2>Seller applications</h2></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="suspended">Suspended</option><option value="all">All</option></select></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No seller applications" detail="New seller applications will appear here after the reviewed marketplace migration is applied." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Shop</th><th>Contact</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><strong>{item.shop_name}</strong><small>{item.slug}<br />{item.description || 'No description'}</small></td><td>{item.contact_email ?? '-'}{item.phone && <small>{item.phone}</small>}<SellerDocumentLink path={item.document_path} /></td><td><em className={statusClass(item.status)}>{item.status}</em></td><td>{formatDate(item.created_at)}</td><td><div className="admin-action-row">{item.status === 'pending' && <><button className="admin-small-button" onClick={() => void review(item, 'approved')}>Approve</button><button className="admin-small-button admin-small-button--danger" onClick={() => void review(item, 'rejected')}>Reject</button></>}{item.status === 'approved' && <button className="admin-small-button admin-small-button--danger" onClick={() => void review(item, 'suspended')}>Suspend</button>}{item.status === 'suspended' && <button className="admin-small-button" onClick={() => void review(item, 'approved')}>Reactivate</button>}</div></td></tr>)}</tbody></table></div>}</section> }
 
 function Cases() { const { push } = useToast(); const [items, setItems] = useState<AdminCase[]>([]); const [status, setStatus] = useState('all'); const [error, setError] = useState<string | null>(null); const load = () => void listMarketplaceCases(status).then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Marketplace cases could not be loaded.')); useEffect(load, [status]); async function decide(item: AdminCase, next: AdminCase['status']) { const decision = window.prompt('Record the administrative decision', item.admin_decision ?? ''); if (!decision) return; try { await decideMarketplaceCase(item.id, next, decision); push('Case decision recorded.'); load() } catch (cause) { push(cause instanceof Error ? cause.message : 'Case decision failed.', 'error') } } return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Returns, refunds and complaints</p><h2>Marketplace cases</h2></div><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option value="open">Open</option><option value="seller_responded">Seller responded</option><option value="under_review">Under review</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="resolved">Resolved</option></select></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No cases" detail="Buyer returns, refund requests and complaints will appear here once the marketplace workflow is enabled." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Type</th><th>Reason</th><th>Status</th><th>Opened</th><th>Decision</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><em className={statusClass(item.case_type)}>{item.case_type}</em></td><td>{item.reason}</td><td><em className={statusClass(item.status)}>{item.status}</em></td><td>{formatDate(item.created_at)}</td><td>{!['resolved', 'rejected'].includes(item.status) && <div className="admin-action-row"><button className="admin-small-button" onClick={() => void decide(item, 'approved')}>Approve</button><button className="admin-small-button" onClick={() => void decide(item, 'rejected')}>Reject</button></div>}{item.admin_decision && <small>{item.admin_decision}</small>}</td></tr>)}</tbody></table></div>}</section> }
 
-function Customers() { const [items, setItems] = useState<AdminCustomer[]>([]); const [error, setError] = useState<string | null>(null); const load = () => void listAdminCustomers().then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Customers could not be loaded.')); useEffect(load, []); return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Authorized customer records</p><h2>Customers</h2></div></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No customer profiles" detail="Customer profiles will appear here after real accounts are created through Supabase Auth." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Customer</th><th>Phone</th><th>Orders</th><th>Joined</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><div className="admin-product-cell"><span className="admin-avatar">{(item.full_name ?? 'C').slice(0, 1).toUpperCase()}</span><span><strong>{item.full_name ?? 'Unnamed customer'}</strong><small>Auth email is not exposed by the public profile table.</small></span></div></td><td>{item.phone ?? '—'}</td><td>{item.order_count ?? 'Not available'}</td><td>{formatDate(item.created_at)}</td></tr>)}</tbody></table></div>}</section> }
+function Customers() { const [items, setItems] = useState<AdminCustomer[]>([]); const [error, setError] = useState<string | null>(null); const load = () => void listAdminCustomers().then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Customers could not be loaded.')); useEffect(load, []); return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Authorized customer records</p><h2>Customers</h2></div></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No customer profiles" detail="Customer profiles will appear here after real accounts are created through Supabase Auth." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Orders</th><th>Lifetime value</th><th>Joined</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><div className="admin-product-cell"><span className="admin-avatar">{(item.full_name ?? 'C').slice(0, 1).toUpperCase()}</span><span><strong>{item.full_name ?? 'Unnamed customer'}</strong><small>{item.email ?? 'No email on file'}</small></span></div></td><td>{item.email ?? '-'}</td><td>{item.phone ?? '-'}</td><td>{item.order_count}</td><td>{formatMoney(item.lifetime_value)}</td><td>{formatDate(item.created_at)}</td></tr>)}</tbody></table></div>}</section> }
+
+function SellerDocumentLink({ path }: { path: string | null }) {
+  const { push } = useToast()
+  const [opening, setOpening] = useState(false)
+
+  async function open() {
+    if (!path) return
+    setOpening(true)
+    try {
+      const url = await getVendorDocumentSignedUrl(path)
+      if (!url) throw new Error('A signed document link could not be created.')
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (cause) {
+      push(cause instanceof Error ? cause.message : 'The verification document could not be opened.', 'error')
+    } finally {
+      setOpening(false)
+    }
+  }
+
+  if (!path) return <small>No verification document uploaded</small>
+  return <button className="admin-small-button" onClick={() => void open()} disabled={opening}>{opening ? 'Opening…' : 'View document'}</button>
+}
+
+function StoreSettings() {
+  const { push } = useToast()
+  const [settings, setSettings] = useState<AdminStoreSettings | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const load = () => {
+    setError(null)
+    void getAdminStoreSettings()
+      .then(setSettings)
+      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Store settings could not be loaded.'))
+  }
+  useEffect(load, [])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const deliveryFee = Number(data.get('delivery_fee'))
+    const returnWindowDays = Number(data.get('return_window_days'))
+    if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
+      push('Delivery fee must be zero or more.', 'error')
+      return
+    }
+    if (!Number.isInteger(returnWindowDays) || returnWindowDays < 0) {
+      push('Return window must be a whole number of days.', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const next = await updateAdminStoreSettings({
+        store_name: String(data.get('store_name') ?? '').trim(),
+        support_email: String(data.get('support_email') ?? '').trim() || null,
+        support_phone: String(data.get('support_phone') ?? '').trim() || null,
+        support_whatsapp: String(data.get('support_whatsapp') ?? '').trim() || null,
+        delivery_fee: deliveryFee,
+        cod_enabled: data.get('cod_enabled') === 'on',
+        return_window_days: returnWindowDays,
+      })
+      setSettings(next)
+      push('Store settings saved. Storefront visitors will see the updated values on their next visit.')
+    } catch (cause) {
+      push(cause instanceof Error ? cause.message : 'Store settings could not be saved.', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (error) return <ErrorState message={error} retry={load} />
+  if (!settings) return <Loading />
+
+  return (
+    <section className="admin-content">
+      <div className="admin-page-heading">
+        <div>
+          <p className="admin-kicker">Storefront defaults and contact details</p>
+          <h2>Store settings</h2>
+        </div>
+      </div>
+      <form className="admin-form admin-panel" onSubmit={(event) => void submit(event)}>
+        <div className="admin-panel-heading">
+          <div>
+            <h3>Public store configuration</h3>
+            <p className="admin-copy">These values are read by the storefront checkout, footer and help pages. Delivery fee and cash-on-delivery availability are enforced again by the database when an order is placed.</p>
+          </div>
+        </div>
+        <div className="admin-form-grid">
+          <label className="admin-form-span">Store name<input name="store_name" defaultValue={settings.store_name} maxLength={160} required /></label>
+          <label>Support email<input name="support_email" type="email" defaultValue={settings.support_email ?? ''} placeholder="support@example.com" /></label>
+          <label>Support phone<input name="support_phone" defaultValue={settings.support_phone ?? ''} placeholder="+92 300 0000000" /></label>
+          <label>Support WhatsApp<input name="support_whatsapp" defaultValue={settings.support_whatsapp ?? ''} placeholder="+92 300 0000000" /></label>
+          <label>Delivery fee (PKR)<input name="delivery_fee" type="number" min="0" step="0.01" defaultValue={settings.delivery_fee} required /></label>
+          <label>Return window (days)<input name="return_window_days" type="number" min="0" step="1" defaultValue={settings.return_window_days} required /></label>
+          <label className="admin-check"><input name="cod_enabled" type="checkbox" defaultChecked={settings.cod_enabled} /> Cash on delivery available</label>
+        </div>
+        <div className="admin-form-actions">
+          <button className="admin-button" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+        </div>
+      </form>
+    </section>
+  )
+}
 
 function Audit() { const [items, setItems] = useState<Array<{ id: string; action: string; entity: string; entity_id: string | null; created_at: string }>>([]); const [error, setError] = useState<string | null>(null); const load = () => void listAuditLogs().then(setItems).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Audit log could not be loaded.')); useEffect(load, []); return <section className="admin-content"><div className="admin-page-heading"><div><p className="admin-kicker">Sensitive changes</p><h2>Audit log</h2></div></div>{error ? <ErrorState message={error} retry={load} /> : items.length === 0 ? <Empty title="No audit events" detail="Product, category, inventory, note, and order status changes will be recorded by database triggers." /> : <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Action</th><th>Entity</th><th>Entity ID</th><th>When</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><em className={statusClass(item.action.toLowerCase())}>{item.action}</em></td><td>{item.entity}</td><td className="admin-mono">{item.entity_id ?? '—'}</td><td>{formatDate(item.created_at)}</td></tr>)}</tbody></table></div>}</section> }
 
