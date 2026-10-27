@@ -188,8 +188,22 @@ export async function getAdminOrderDetail(id: string) {
 }
 
 export async function updateOrder(id: string, input: Database['public']['Tables']['orders']['Update']) {
-  const { error } = await getSupabase().from('orders').update(input).eq('id', id)
+  const client = getSupabase()
+  const { error } = await client.from('orders').update(input).eq('id', id)
   assertError(error)
+
+  const status = input.order_status
+  if (status && ['confirmed', 'shipped', 'delivered'].includes(status)) {
+    const { data, error: emailError } = await client.functions.invoke('commerce-email', {
+      body: { event: 'order_status', order_id: id, status },
+    })
+
+    if (emailError) {
+      console.error('Order status email invocation failed:', emailError.message)
+    } else if (!data?.sent) {
+      console.warn('Order status email was not sent:', data)
+    }
+  }
 }
 
 export async function addOrderNote(order_id: string, note: string) {
